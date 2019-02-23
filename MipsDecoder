@@ -1,0 +1,45 @@
+# Authors Aster Bodden and Stephen Yee 
+.data
+# Area for global values , constants strings 
+
+.text 
+# Area for the code 
+
+#Main program should: 
+# Accept a machineinstruction word and its address as two stringsfrom the user
+# Extract the numeric value from the input strings
+# Call subroutine get_type print the format type (I/J/R) "invalid" if not supported
+# Call subroutine get_dest_reg print the destination register number of the instruction (decimal value), "none" for no destination or invalid if not supported
+# Call subroutine get_next_pc print(HEX) the address(es)of the next instruction, if not supported print invalid
+# Operations supported  add, addi, sub, slt, lw, sw, beq, j. 
+main: 
+
+
+
+
+# required subroutines 
+#Parameter:instructionis a 32-bit unsigned numberrepresenting a machine instruction word.
+# Return: an integer with the following possible values of 1-R type, 2-I type, 3-J type, 0-not supported
+.globl get_type
+get_type:
+
+#Parameter: instruction is a 32-bit unsigned number representing a machine instruction word.
+# return: 
+	#an integer representing the register number which will be updated by executing of this instruction.
+	# A valid return should be within the range of [0,31]'
+	# Return 32 if no register gets updated by the instruction
+	# Retrun 0 for invalid instruction or invalid destination register
+	#Note: some instruction might update $rt instead of $rd
+.globl get_dest_reg
+get_dest_reg: 
+
+#Parameter: instruction is a 32-bit unsigned number representing a machine instruction word.
+#	    addr is a 32-bit unsigned number representing the address (PC) of instruction.
+# return: 
+# For sequential and jump instructions, return an integer representing the address of the next instruction we will fetch and execute in $v0
+# For branch return two integers if taken return address in v1, if not taken retrin address in v0 
+#  next pc is never going to be zero and return 0 in $v0 for invalid instructions
+.globl get_next_pc
+get_next_pc:
+
+# Helper subroutines 
