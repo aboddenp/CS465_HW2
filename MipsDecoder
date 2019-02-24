@@ -13,10 +13,9 @@
 # Call subroutine get_next_pc print(HEX) the address(es)of the next instruction, if not supported print invalid
 # Operations supported  add, addi, sub, slt, lw, sw, beq, j. 
 main: 
-	addi $a0, $a0, 0x12345678
-	addi $a1, $zero, 2 
-	jal getRreg 
-
+	addi $a0, $zero, 0x08124553
+	jal get_dest_reg
+	j ex1 # finish program 
 
 
 
@@ -44,38 +43,38 @@ get_type:
 	jal getFunc 
 	add $s1, $v0, $zero # save returned Function code 
 	
-	add $v0, $v0, $zero # return addres if invalid 
+	add $v0, $zero, $zero # return register if invalid set to 0
 	
 	#check the OP code
 	addi $t0, $zero, 2 
 	beq $s0, $zero, R
 	beq $s0, $t0, J
 	I:
- 		addi $t0, $zero, 8
- 		addi $t1, $zero, 35
- 		addi $t2, $zero, 43
- 		# check that Func is valid 
+ 		addi $t0, $zero, 4  #beq
+ 		addi $t1, $zero, 35 #lw
+ 		addi $t2, $zero, 43 #sw
+ 		# check that Opcode is valid 
  		beq $s0,$t0, goodI  
  		beq $s0,$t1, goodI 
  		beq $s0,$t2, goodI
  		j exit #not a supported type
  		goodI: 
- 			addi $v0, $v0, 1
+ 			addi $v0, $zero, 1
  			j exit
  	R:  
- 		addi $t0, $zero, 32
- 		addi $t1, $zero, 34
- 		addi $t2, $zero, 42
+ 		addi $t0, $zero, 32 # add
+ 		addi $t1, $zero, 34 # sub
+ 		addi $t2, $zero, 42 # slt 
  		# check that Func is valid 
  		beq $s1,$t0, goodR  
  		beq $s1,$t1, goodR 
  		beq $s1,$t2, goodR
  		j exit #not a supported type
  		goodR: 
- 			addi $v0, $v0, 2
+ 			addi $v0, $zero, 2
  			j exit
 	J: 	# set return value to 3
-		addi $v0, $v0, 3
+		addi $v0, $zero, 3
 	
 	exit: 
 		# restore Saved registers and retrun address to original value 
@@ -83,7 +82,7 @@ get_type:
 		lw $s1, 8($sp) 
 		lw $ra, 12($sp)
 		#restore stack to original value 
-		addi $sp, $sp, -12 
+		addi $sp, $sp, 16
 		jr $ra 
 	
 #Parameter: instruction is a 32-bit unsigned number representing a machine instruction word.
@@ -95,12 +94,54 @@ get_type:
 	#Note: some instruction might update $rt instead of $rd
 .globl get_dest_reg
 get_dest_reg: 
-
+	#make room in stack for ra and other saved variables
+	addi $sp, $sp, -8
+	sw $ra, 4($sp) # store return address 
+	sw $a0, 0($sp) # store paramter 
+	# get instruction type 
+	jal get_type 
+	add $t0, $v0, $zero #save return type 
+	beq $t0, $zero, end #if it is an invalid instruction return 0
+	
+	addi $t1, $zero , 1 
+	addi $t3, $zero , 3
+	
+	beq $t1, $t0, It
+	beq $t3, $t0, noUpdate
+	# R type 
+	Rt:
+		lw $a0, 0($sp) # restore instruction
+		addi $a1, $zero, 2 # 2ndparam is what register to get (2 = rd)
+		jal getRreg # get rd 
+		j end 
+	
+	# I type 
+	It:
+		lw $a0, 0($sp) #restore instruction before call 
+		jal getOpcode #get opcode 
+		addi $t0 , $zero, 35
+		bne $v0, $t0, noUpdate # this instruction does not update any registers 
+		
+		lw $a0, 0($sp) #restore instruction before call 
+		addi $a1, $zero, 1 # 2ndparam is what register to get (1 = rt)
+		jal getRreg #get rt
+		j end 
+	
+	# J type or any instruction that does not modify a register  
+	noUpdate: 
+		addi $v0 , $zero, 32
+	
+	end: 
+		#restore return address 
+		lw $ra, 4($sp) 
+		addi $sp , $sp, 8 # restore stack to original size 
+		jr $ra
+		
 #Parameter: instruction is a 32-bit unsigned number representing a machine instruction word.
 #	    addr is a 32-bit unsigned number representing the address (PC) of instruction.
 # return: 
 # For sequential and jump instructions, return an integer representing the address of the next instruction we will fetch and execute in $v0
-# For branch return two integers if taken return address in v1, if not taken retrin address in v0 
+# For branch return two integers if taken return address in v1, if not taken return address in v0 
 #  next pc is never going to be zero and return 0 in $v0 for invalid instructions
 .globl get_next_pc
 get_next_pc:
@@ -108,7 +149,7 @@ get_next_pc:
 # Helper subroutines 
 
 getOpcode: 
-	sll $v0, $a0, 26
+	srl $v0, $a0, 26
 	jr $ra
 getFunc: 
 	andi $v0, $a0, 0x3F
@@ -134,3 +175,6 @@ getRreg:
 		#save only the six bits needed for registers
 		andi $v0, $v0, 0x1F
 		jr $ra 
+
+# program finished 
+ex1:
