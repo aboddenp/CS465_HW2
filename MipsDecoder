@@ -13,16 +13,79 @@
 # Call subroutine get_next_pc print(HEX) the address(es)of the next instruction, if not supported print invalid
 # Operations supported  add, addi, sub, slt, lw, sw, beq, j. 
 main: 
+	addi $a0, $a0, 0x12345678
+	addi $a1, $zero, 2 
+	jal getRreg 
 
 
 
 
 # required subroutines 
-#Parameter:instructionis a 32-bit unsigned numberrepresenting a machine instruction word.
+#Parameter:instruction is a 32-bit unsigned number representing a machine instruction word.
 # Return: an integer with the following possible values of 1-R type, 2-I type, 3-J type, 0-not supported
 .globl get_type
 get_type:
+	
+	# push stacks values to restore  before the call ends
+	addi $sp, $sp, -16
+	sw $s0, 4($sp) 
+	sw $s1, 8($sp) 
+	sw $ra, 12($sp)
 
+	# R types will have the opcode set to 0 and func can be 32 34 42 
+	# I type ocodes are 8 35 and 43 
+	# J type will have opcode 2
+	
+	#obtain Op code and function code 
+	sw $a0, 0($sp) #save instruction parameter 
+	jal getOpcode
+	add $s0, $v0, $zero # save returned OP code 
+	lw $a0, 0($sp) #restore instruction 
+	jal getFunc 
+	add $s1, $v0, $zero # save returned Function code 
+	
+	add $v0, $v0, $zero # return addres if invalid 
+	
+	#check the OP code
+	addi $t0, $zero, 2 
+	beq $s0, $zero, R
+	beq $s0, $t0, J
+	I:
+ 		addi $t0, $zero, 8
+ 		addi $t1, $zero, 35
+ 		addi $t2, $zero, 43
+ 		# check that Func is valid 
+ 		beq $s0,$t0, goodI  
+ 		beq $s0,$t1, goodI 
+ 		beq $s0,$t2, goodI
+ 		j exit #not a supported type
+ 		goodI: 
+ 			addi $v0, $v0, 1
+ 			j exit
+ 	R:  
+ 		addi $t0, $zero, 32
+ 		addi $t1, $zero, 34
+ 		addi $t2, $zero, 42
+ 		# check that Func is valid 
+ 		beq $s1,$t0, goodR  
+ 		beq $s1,$t1, goodR 
+ 		beq $s1,$t2, goodR
+ 		j exit #not a supported type
+ 		goodR: 
+ 			addi $v0, $v0, 2
+ 			j exit
+	J: 	# set return value to 3
+		addi $v0, $v0, 3
+	
+	exit: 
+		# restore Saved registers and retrun address to original value 
+		lw $s0 , 4($sp) 
+		lw $s1, 8($sp) 
+		lw $ra, 12($sp)
+		#restore stack to original value 
+		addi $sp, $sp, -12 
+		jr $ra 
+	
 #Parameter: instruction is a 32-bit unsigned number representing a machine instruction word.
 # return: 
 	#an integer representing the register number which will be updated by executing of this instruction.
@@ -43,3 +106,31 @@ get_dest_reg:
 get_next_pc:
 
 # Helper subroutines 
+
+getOpcode: 
+	sll $v0, $a0, 26
+	jr $ra
+getFunc: 
+	andi $v0, $a0, 0x3F
+	jr $ra
+# gets the register in instruction $a0 at position $a1
+# 0 = rs 
+# 1 = rt
+# 2 = rd 
+getRreg: 
+	addi $t0, $zero, 1
+	beq $a1, $zero, rs 
+	beq $a1, $t0, rt 
+	rd: 
+		srl $v0, $a0, 11 #shift to rd position 
+		j return 		
+	rs:
+		srl $v0, $a0, 21 #shift to rs position
+		j return 
+	rt: 
+		srl $v0, $a0, 16 #shift to rt position
+	
+	return: 
+		#save only the six bits needed for registers
+		andi $v0, $v0, 0x1F
+		jr $ra 
