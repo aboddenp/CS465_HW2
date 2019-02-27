@@ -146,8 +146,56 @@ get_dest_reg:
 .globl get_next_pc
 get_next_pc:
 
-# Helper subroutines 
+	addi $sp, $sp, -12
+	sw $ra, 8($sp) 
+	sw $a0, 4($sp) 
+	sw $a1, 0($sp) 
+	
+	#check if the instruction is a valid instruction 
+	jal get_type #return type in $v0 
+	
+	#restore parameter values 
+	lw $a0, 4($sp) 
+	lw $a1, 0($sp) 
+	
+	beq $zero, $v0, finish # retrun if the instruction is invalid 
+	addi $t0, $zero, 3 # 3 = jump instruction 
+	beq $t0, $v0, ujump # if type is 3 find jump target 
+	
+	jal getOpcode # get the instruction opcode 
+	
+	#restore parameter values 
+	lw $a0, 4($sp) 
+	lw $a1, 0($sp)
+	
+	add $t1, $v0, $zero #save instruction opcode in t1 
+	addi $v0, $a1, 4 # PC + 4 in return register 
+	addi $t0, $zero, 0x4 # beq opcode = 4
+	bne $t1, $t0, finish #  if it is not a beq instruction target address is already calculated  
+	
+	# branch is taken : 
+	# for the branch instruction we have to do an extra step by getting the imidiate value mult by 4 
+	# and this result add it to PC + 4 
+	andi $t0, $a0 , 0xFFFF # save the lower  16 bits that have the Imidiate value
+	sll $v1 , $t0, 2 # multiply the immidiate by 4 
+	# add the IMM * 4 to (PC + 4) 
+	# PC + 4 was already calculated and stored in $v0 
+	add $v1, $v1, $v0 # IMM*4 + PC + 4 
+	
+	j finish 
+	# Jump instruction we have to mult immidiate  by 4 and mask the last 4 bits of the current PC to new PC
+	ujump: 
+		andi $t0, $a0 , 0x3FFFFFF # save the lower  26 bits that have the Imidiate value
+		andi $t1, $a1, 0xF0000000 # save the last 4 bits from current PC
+		sll $v0 , $t0, 2 # multiply the immidiate by 4 
+		#merge Immidiate * 4 and the last four bits of current address 
+		or $v0, $v0, $t1 # jump stored in $v0  
+			
+	finish: 
+		lw $ra, 8($sp) #restore return address
+		addi $sp, $sp, 12 
 
+# Helper subroutines 
 getOpcode: 
 	srl $v0, $a0, 26
 	jr $ra
