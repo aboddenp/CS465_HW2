@@ -2,7 +2,15 @@
 .data
 # Area for global values , constants strings 
 
+prompt_decode: .asciiz "Instruction to decode? "
+prompt_address: .asciiz "\nInstruction address? "
+prompt_format: .asciiz "\nFormat type: "
+prompt_destination: .asciiz "\nDestination register: "
+prompt_nextPC: .asciiz "\nNext PC: "
+buffer1: .space 9
+buffer2: .space 9
 .text 
+
 # Area for the code 
 
 #Main program should: 
@@ -12,11 +20,65 @@
 # Call subroutine get_dest_reg print the destination register number of the instruction (decimal value), "none" for no destination or invalid if not supported
 # Call subroutine get_next_pc print(HEX) the address(es)of the next instruction, if not supported print invalid
 # Operations supported  add, addi, sub, slt, lw, sw, beq, j. 
-main: 
-	addi $a0, $zero, 0x08124553
-	jal get_dest_reg
-	j ex1 # finish program 
-
+main:
+	addi $sp, $sp, 18 
+	li $v0, 4 # print command
+	la $a0, prompt_decode # load str into output register
+	syscall
+	
+	la $v0, 8
+	la $a0, buffer1
+	la $a1, 9
+	move $t0, $a0
+	syscall
+	
+	
+	li $v0, 4 # print command
+	la $a0, prompt_address # load str into output register
+	syscall
+	
+	la $v0, 8
+	la $a0, buffer2
+	la $a1, 9
+	move $t1, $a0
+	syscall
+	
+	addi $t2 , $zero, 8 # stop index 
+	addi $t3 , $zero, 0 # index 
+	add $t4 , $zero , $t0 # array instruction string base address 
+	add $t5, $zero, $t1 # array  address string 
+	add $s0, $zero, $zero  # saves int instruction
+	add $s1, $zero, $zero  # saves int address 
+	#convert ascii to int values 
+	loop: 
+		
+		# next character 
+		 lb $t6, 0($t4) 
+		 lb $t7, 0($t5) 
+		 
+		 #convert to int value
+		 addi $t6, $t6, -0x30
+		 addi $t7, $t7, -0x30 
+		 
+		 or $s0, $s0, $t6
+		 or $s1, $s1, $t7
+		 
+		 sll $s0, $s0, 4
+		 sll $s1, $s1, 4
+		
+		addi $t3, $t3, 1 #increment counter 
+		addi $t4, $t4, 1 # move address to next byte 
+		addi $t5, $t5, 1 # move address to next byte
+		bne $t3, $t2,loop # check if the loop continues 
+		
+#	li $v0, 5 
+#	move $a0, $s0 
+#	syscall
+#	li $v0, 5 
+#	move $a0, $s1
+#	syscall
+	
+	j ex1
 
 
 # required subroutines 
