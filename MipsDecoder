@@ -2,11 +2,17 @@
 .data
 # Area for global values , constants strings 
 
-prompt_decode: .asciiz "Instruction to decode? "
+prompt_decode: .asciiz "\nInstruction to decode? "
 prompt_address: .asciiz "\nInstruction address? "
 prompt_format: .asciiz "\nFormat type: "
 prompt_destination: .asciiz "\nDestination register: "
 prompt_nextPC: .asciiz "\nNext PC: "
+rtype: .asciiz " R-type"
+itype: .asciiz " I-type"
+jtype: .asciiz " J-type"
+invalid: .asciiz "invalid"
+none: .asciiz "none"
+delim: .asciiz " / "
 buffer1: .space 9
 buffer2: .space 9
 .text 
@@ -21,7 +27,11 @@ buffer2: .space 9
 # Call subroutine get_next_pc print(HEX) the address(es)of the next instruction, if not supported print invalid
 # Operations supported  add, addi, sub, slt, lw, sw, beq, j. 
 main:
-	addi $sp, $sp, 18 
+
+	addi $sp, $sp, -8 
+	sw $s0, 0($sp) 
+	sw $s1, 4($sp)
+	 
 	li $v0, 4 # print command
 	la $a0, prompt_decode # load str into output register
 	syscall
@@ -29,9 +39,8 @@ main:
 	la $v0, 8
 	la $a0, buffer1
 	la $a1, 9
-	move $t0, $a0
+	move $s0, $a0
 	syscall
-	
 	
 	li $v0, 4 # print command
 	la $a0, prompt_address # load str into output register
@@ -40,44 +49,125 @@ main:
 	la $v0, 8
 	la $a0, buffer2
 	la $a1, 9
-	move $t1, $a0
+	move $s1, $a0
 	syscall
 	
-	addi $t2 , $zero, 8 # stop index 
-	addi $t3 , $zero, 0 # index 
-	add $t4 , $zero , $t0 # array instruction string base address 
-	add $t5, $zero, $t1 # array  address string 
-	add $s0, $zero, $zero  # saves int instruction
-	add $s1, $zero, $zero  # saves int address 
-	#convert ascii to int values 
-	loop: 
-		
-		# next character 
-		 lb $t6, 0($t4) 
-		 lb $t7, 0($t5) 
-		 
-		 #convert to int value
-		 addi $t6, $t6, -0x30
-		 addi $t7, $t7, -0x30 
-		 
-		 or $s0, $s0, $t6
-		 or $s1, $s1, $t7
-		 
-		 sll $s0, $s0, 4
-		 sll $s1, $s1, 4
-		
-		addi $t3, $t3, 1 #increment counter 
-		addi $t4, $t4, 1 # move address to next byte 
-		addi $t5, $t5, 1 # move address to next byte
-		bne $t3, $t2,loop # check if the loop continues 
-		
-#	li $v0, 5 
-#	move $a0, $s0 
-#	syscall
-#	li $v0, 5 
-#	move $a0, $s1
-#	syscall
+	# convert the ascii string to an integer for both instruction and address
+	move $a0, $s1
+	jal ascii2hex
+	move $s1, $v0 # store int address in $s1 
 	
+	move $a0, $s0
+	jal ascii2hex
+	move $s0, $v0 # store int instruction in $s0
+	
+	# print the instruction type 
+	li $v0, 4 # print command
+	la $a0, prompt_format # load str into output register
+	syscall
+		
+	move $a0, $s0 
+	jal get_type  # call subroutine to get type 
+	li $t1, 1 # I type 
+	li $t2, 2 # R type 
+	li $t3, 3 # J type 
+	beq $v0, $t1, type_I
+	beq $v0, $t2, type_R
+	beq $v0, $t3, type_J
+	# invalid instruction 
+		li $v0, 4 # print command
+		la $a0, invalid # load str into output register
+		syscall
+	j out 
+	type_R: 
+		li $v0, 4 # print command
+		la $a0, rtype # load str into output register
+		syscall
+		j out 
+	type_I: 
+		li $v0, 4 # print command
+		la $a0, itype # load str into output register
+		syscall
+		j out 
+	type_J: 
+		li $v0, 4 # print command
+		la $a0, jtype # load str into output register
+		syscall
+	
+	out: # finished printing type 
+	
+	# print the instruction type 
+	li $v0, 4 # print command
+	la $a0, prompt_destination # load str into output register
+	syscall
+		
+	move $a0, $s0 
+	jal get_dest_reg  # call subroutine to get destination register 
+	beq $v0, $zero, inv # handle invalid case 
+	li $t0, 32
+	beq $t0, $v0 , non # handle none case 
+	
+	#print register number 
+	move $a0, $v0 
+	li $v0, 1 # print destination register number 
+	syscall
+	j out1
+	
+	non: # print that no register is modified 
+		li $v0, 4 # print command
+		la $a0, none # load str into output register
+		syscall	
+		j out1 
+		
+	inv:
+		# invalid instruction or invalid register 
+		li $v0, 4 # print command
+		la $a0, invalid # load str into output register
+		syscall		
+	out1:
+	
+	
+	# print the next PC to run 
+	li $v0, 4 # print command
+	la $a0, prompt_nextPC # load str into output register
+	syscall
+	
+	add $v1, $zero, $zero # set second return to zero to check after call 
+	
+	move $a0, $s0 # prepare instruction to set as param 1
+	move $a1, $s1 # prepare address as param 2 
+	jal get_next_pc
+	beq $v0, $zero, notvalid 
+
+	# print next PC
+	move $a0, $v0 
+	li $v0, 34 # print next PC as hex 
+	syscall
+	
+	beq $v1, $zero, out2 # If not a branch instruction job is done 
+	
+	# print space delimeter 
+	li $v0, 4 # print command
+	la $a0, delim # load str into output register
+	syscall
+	
+	# print other possible PC if branch is taken 
+	move $a0, $v1 
+	li $v0, 34 # print next PC as hex 
+	syscall
+	j out2 
+	
+	notvalid: 
+		# invalid instruction or invalid register 
+		li $v0, 4 # print command
+		la $a0, invalid # load str into output register
+		syscall	
+	
+	out2: 
+		
+	lw $s0, 0($sp) 
+	lw $s1, 4($sp) 
+	addi $sp, $sp,  8 
 	j ex1
 
 
@@ -236,7 +326,7 @@ get_next_pc:
 	bne $t1, $t0, finish #  if it is not a beq instruction target address is already calculated  
 	
 	# branch is taken : 
-	# for the branch instruction we have to do an extra step by getting the imidiate value mult by 4 
+	# for the branch instruction we have to do an extra step by getting the sign extended imidiate value mult by 4 
 	# and this result add it to PC + 4 
 	andi $t0, $a0 , 0xFFFF # save the lower  16 bits that have the Imidiate value
 	#sign extend $t0 
@@ -258,7 +348,8 @@ get_next_pc:
 			
 	finish: 
 		lw $ra, 8($sp) #restore return address
-		addi $sp, $sp, 12 
+		addi $sp, $sp, 12
+		jr $ra
 
 # Helper subroutines 
 getOpcode: 
@@ -288,6 +379,36 @@ getRreg:
 		#save only the six bits needed for registers
 		andi $v0, $v0, 0x1F
 		jr $ra 
-
+# convert the hexadecimal string in $a0 into integer value returned in vo
+ascii2hex:
+	addi $t1 , $zero, 8 # stop index 
+	addi $t2 , $zero, 0 # index 
+	add $t5, $zero, $zero  # saves int instruction
+	#convert ascii hex to int values 
+	loop: 
+		# next character 
+		 lb $t3, 0($a0) 
+		 
+		 #convert to int value 0 - 10 
+		 addi $t3, $t3, -0x30
+		 addi $t4, $zero, 17
+		 blt $t3, $t4, mask # if less than 17 it is not a letter 
+		 # convert to int value A - F 
+		 addi $t3, $t3, -0x7
+		 
+		 mask: 
+		 or $t5, $t5, $t3
+		 
+		 addi $t2, $t2, 1 #increment counter 
+		 beq $t1, $t2, d1 # check if the loop continues 
+		 
+		 # prepare for net 4 bits 
+		 sll $t5, $t5, 4
+		 
+		addi $a0, $a0, 1 # move address to next byte 
+		j loop # check if the loop continues 
+	d1: # loop end 
+		move $v0, $t5
+		jr $ra
 # program finished 
 ex1:
