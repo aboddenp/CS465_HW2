@@ -39,7 +39,7 @@ main:
 	la $v0, 8
 	la $a0, buffer1
 	la $a1, 9
-	move $s0, $a0
+	move $s0, $a0  #save instruction string in $s0 
 	syscall
 	
 	li $v0, 4 # print command
@@ -49,7 +49,7 @@ main:
 	la $v0, 8
 	la $a0, buffer2
 	la $a1, 9
-	move $s1, $a0
+	move $s1, $a0 # save address string in $s1 
 	syscall
 	
 	# convert the ascii string to an integer for both instruction and address
